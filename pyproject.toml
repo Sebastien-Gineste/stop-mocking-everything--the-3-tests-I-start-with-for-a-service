@@ -1,0 +1,33 @@
+[project]
+name = "only3tests"
+version = "0.1.0"
+description = "FastAPI users + payments service showcasing unit, contract, and E2E tests"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "httpx>=0.28.0",
+    "uvicorn>=0.34.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "testcontainers>=4.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: unit tests for pure logic and service orchestration with fakes",
+    "contract: boundary contract tests (fake vs real adapters)",
+    "e2e: end-to-end wiring tests over the real app stack",
+    "antipattern: mock-heavy tests kept for educational contrast",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
