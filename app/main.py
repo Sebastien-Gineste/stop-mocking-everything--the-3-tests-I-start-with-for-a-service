@@ -53,7 +53,10 @@ def create_app(container: Container | None = None) -> FastAPI:
         app.state.container = app_container
         yield
 
-    app = FastAPI(title="Only 3 Tests Service", lifespan=lifespan)
+    app = FastAPI(
+        title="Stop Mocking Everything: The 3 Tests I Start With for a Service",
+        lifespan=lifespan,
+    )
     app.state.container = app_container
 
     @app.post("/users", status_code=201, response_model=UserResponse)

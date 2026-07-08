@@ -1,6 +1,6 @@
-# The Only 3 Tests You Need — Python Example
+# Stop Mocking Everything: The 3 Tests I Start With for a Service — Python Example
 
-A small FastAPI service (users + payments) that demonstrates a testing strategy with **unit**, **contract**, and **E2E** tests — plus a mock-heavy anti-pattern for contrast.
+A small FastAPI service (users + payments) that demonstrates a testing strategy with **unit**, **contract**, and **E2E** tests. Plus a mock-heavy anti-pattern for contrast.
 
 ## Quick start
 
