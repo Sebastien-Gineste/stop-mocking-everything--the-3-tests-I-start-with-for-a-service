@@ -19,7 +19,8 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "unit: unit tests for pure logic and service orchestration with fakes",
+    "unit: unit tests for pure business logic",
+    "service: sociable service tests with real collaborators and verified fakes at ports",
     "contract: boundary contract tests (fake vs real adapters)",
     "e2e: end-to-end wiring tests over the real app stack",
     "antipattern: mock-heavy tests kept for educational contrast",

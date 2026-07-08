@@ -4,12 +4,15 @@ from dataclasses import dataclass
 
 import pytest
 
-from app.adapters.fakes.fake_payment_gateway import FakePaymentGateway
-from app.adapters.fakes.fake_payment_repository import FakePaymentRepository
-from app.adapters.fakes.fake_user_repository import FakeUserRepository
 from app.domain.models import User
+from app.ports.payment_gateway import PaymentGateway
+from app.services.payment_eligibility_checker import PaymentEligibilityChecker
 from app.services.payment_service import PaymentService
 from app.services.user_service import UserService
+from tests.doubles.payment_gateway_down_stub import PaymentGatewayDownStub
+from tests.doubles.payment_gateway_fake import FakePaymentGateway
+from tests.doubles.payment_repository_fake import FakePaymentRepository
+from tests.doubles.user_repository_fake import FakeUserRepository
 
 DEFAULT_EMAIL = "john@example.com"
 DEFAULT_PASSWORD = "secure-password"
@@ -27,7 +30,7 @@ class SUT:
     service: PaymentService
     user_repository: FakeUserRepository
     payment_repository: FakePaymentRepository
-    payment_gateway: FakePaymentGateway
+    payment_gateway: PaymentGateway
 
 
 class SUTBuilder:
@@ -35,7 +38,8 @@ class SUTBuilder:
     def __init__(self) -> None:
         self.user_repository = FakeUserRepository()
         self.payment_repository = FakePaymentRepository()
-        self.payment_gateway = FakePaymentGateway()
+        self.payment_gateway: PaymentGateway = FakePaymentGateway()
+        self.eligibility_checker = PaymentEligibilityChecker()
 
     def with_user(
         self,
@@ -55,6 +59,7 @@ class SUTBuilder:
             self.user_repository,
             self.payment_repository,
             self.payment_gateway,
+            self.eligibility_checker,
         )
         return SUT(
             service=service,
@@ -73,7 +78,7 @@ def sut_builder() -> SUTBuilder:
 # -----------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.service
 def test_charge_persists_payment_and_records_gateway_charge():
     sut = sut_builder().with_user(DEFAULT_EMAIL, DEFAULT_PASSWORD).build()
 
@@ -89,7 +94,7 @@ def test_charge_persists_payment_and_records_gateway_charge():
     assert len(sut.payment_gateway.charges) == 1
 
 
-@pytest.mark.unit
+@pytest.mark.service
 def test_charge_fails_when_user_missing():
     sut = sut_builder().build()
 
@@ -101,7 +106,7 @@ def test_charge_fails_when_user_missing():
     assert len(sut.payment_gateway.charges) == 0
 
 
-@pytest.mark.unit
+@pytest.mark.service
 def test_charge_fails_when_amount_invalid():
     sut = sut_builder().with_user(DEFAULT_EMAIL, "hashed", registered=False).build()
 
@@ -110,3 +115,27 @@ def test_charge_fails_when_amount_invalid():
     assert result.is_error()
     assert sut.payment_repository.find_by_user_email(DEFAULT_EMAIL) == []
     assert len(sut.payment_gateway.charges) == 0
+
+
+@pytest.mark.service
+def test_charge_fails_when_gateway_is_down():
+    builder = sut_builder().with_user(DEFAULT_EMAIL, DEFAULT_PASSWORD)
+    builder.payment_gateway = PaymentGatewayDownStub()
+    sut = builder.build()
+
+    result = sut.service.charge(DEFAULT_EMAIL, 25.0, "EUR")
+
+    assert result.is_error()
+    assert result.error == "Payment gateway unavailable"
+    assert sut.payment_repository.find_by_user_email(DEFAULT_EMAIL) == []
+
+
+@pytest.mark.service
+def test_charge_fails_when_currency_not_supported():
+    sut = sut_builder().with_user(DEFAULT_EMAIL, DEFAULT_PASSWORD).build()
+
+    result = sut.service.charge(DEFAULT_EMAIL, 25.0, "BTC")
+
+    assert result.is_error()
+    assert result.error == "Unsupported currency"
+    assert sut.payment_repository.find_by_user_email(DEFAULT_EMAIL) == []

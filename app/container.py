@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 
-from app.adapters.fakes.fake_payment_gateway import FakePaymentGateway
-from app.adapters.real_implementation.sqlite_payment_repository import (
-    SqlitePaymentRepository,
-)
-from app.adapters.real_implementation.sqlite_user_repository import SqliteUserRepository
+from app.adapters.http_payment_gateway import HttpPaymentGateway
+from app.adapters.sqlite_payment_repository import SqlitePaymentRepository
+from app.adapters.sqlite_user_repository import SqliteUserRepository
 from app.db import create_connection
 from app.ports.payment_gateway import PaymentGateway
 from app.ports.payment_repository import PaymentRepository
@@ -26,7 +25,9 @@ class Container:
         self.payment_repository: PaymentRepository = SqlitePaymentRepository(
             self.connection
         )
-        self.payment_gateway: PaymentGateway = payment_gateway or FakePaymentGateway()
+        self.payment_gateway: PaymentGateway = payment_gateway or HttpPaymentGateway(
+            base_url=os.getenv("PAYMENT_PROVIDER_BASE_URL", "http://127.0.0.1:8080")
+        )
         self.user_service = UserService(self.user_repository)
         self.payment_service = PaymentService(
             self.user_repository,
@@ -43,7 +44,4 @@ def create_test_container(
 
 
 def create_in_memory_container() -> Container:
-    return Container(
-        connection=create_connection(),
-        payment_gateway=FakePaymentGateway(),
-    )
+    return Container(connection=create_connection())

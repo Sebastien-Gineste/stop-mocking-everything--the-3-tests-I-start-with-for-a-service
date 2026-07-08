@@ -4,8 +4,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from app.adapters.fakes.fake_user_repository import FakeUserRepository
 from app.services.user_service import UserService
+from tests.doubles.user_repository_fake import FakeUserRepository
 
 DEFAULT_EMAIL = "john@example.com"
 DEFAULT_PASSWORD = "secure-password"
@@ -47,7 +47,7 @@ def sut_builder() -> SUTBuilder:
 # -----------------------------------------------------------------------------
 
 
-@pytest.mark.unit
+@pytest.mark.service
 def test_register_user_persists_in_fake_repository():
     sut = sut_builder().build()
 
@@ -59,7 +59,7 @@ def test_register_user_persists_in_fake_repository():
     assert saved.email == DEFAULT_EMAIL
 
 
-@pytest.mark.unit
+@pytest.mark.service
 def test_register_user_rejects_duplicate_email():
     sut = sut_builder().with_user(DEFAULT_EMAIL, DEFAULT_PASSWORD).build()
 
@@ -70,7 +70,7 @@ def test_register_user_rejects_duplicate_email():
     assert len(sut.repository.users) == 1
 
 
-@pytest.mark.unit
+@pytest.mark.service
 def test_register_user_rejects_invalid_email():
     sut = sut_builder().build()
 
@@ -80,7 +80,7 @@ def test_register_user_rejects_invalid_email():
     assert sut.repository.find_by_email("invalid-email") is None
 
 
-@pytest.mark.unit
+@pytest.mark.service
 def test_register_user_rejects_short_password():
     sut = sut_builder().build()
 

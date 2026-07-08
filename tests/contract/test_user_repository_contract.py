@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.adapters.fakes.fake_user_repository import FakeUserRepository
-from app.adapters.real_implementation.sqlite_user_repository import SqliteUserRepository
+from app.adapters.sqlite_user_repository import SqliteUserRepository
 from app.domain.models import User
 from app.db import create_connection
 from app.ports.user_repository import UserRepository
+from tests.doubles.user_repository_fake import FakeUserRepository
 
 
 # -----------------------------------------------------------------------------
@@ -24,6 +24,7 @@ def user_repository_contract(repository: UserRepository) -> None:
     assert saved_user is not None
     assert saved_user.email == "john@example.com"
     assert saved_user.password_hash == "hashed"
+    assert repository.find_by_email("missing@example.com") is None
 
 
 # -----------------------------------------------------------------------------

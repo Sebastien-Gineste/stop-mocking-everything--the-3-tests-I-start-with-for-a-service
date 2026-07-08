@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.adapters.real_implementation.http_payment_gateway import HttpPaymentGateway
+from app.adapters.http_payment_gateway import HttpPaymentGateway
 from app.container import create_test_container
 from app.db import create_connection
 from app.main import create_app

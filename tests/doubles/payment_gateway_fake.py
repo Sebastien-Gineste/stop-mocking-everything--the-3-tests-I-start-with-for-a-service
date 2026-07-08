@@ -5,7 +5,7 @@ from app.ports.payment_gateway import PaymentGateway
 
 
 class FakePaymentGateway(PaymentGateway):
-    """Fake gateway with real behavior: records charges and returns success."""
+    """Fake gateway with real behavior; also acts as a spy by recording charges."""
 
     def __init__(self) -> None:
         self.charges: list[Payment] = []

@@ -5,6 +5,7 @@ from app.domain.validation import validate_amount
 from app.ports.payment_gateway import PaymentGateway
 from app.ports.payment_repository import PaymentRepository
 from app.ports.user_repository import UserRepository
+from app.services.payment_eligibility_checker import PaymentEligibilityChecker
 
 
 class PaymentService:
@@ -13,10 +14,12 @@ class PaymentService:
         user_repository: UserRepository,
         payment_repository: PaymentRepository,
         payment_gateway: PaymentGateway,
+        eligibility_checker: PaymentEligibilityChecker | None = None,
     ) -> None:
         self._user_repository = user_repository
         self._payment_repository = payment_repository
         self._payment_gateway = payment_gateway
+        self._eligibility_checker = eligibility_checker or PaymentEligibilityChecker()
 
     def charge(self, email: str, amount: float, currency: str) -> Result[Payment]:
         amount_result = validate_amount(amount)
@@ -27,6 +30,10 @@ class PaymentService:
         if user is None:
             return Result.fail("User not found")
 
+        eligibility_result = self._eligibility_checker.ensure_eligible(amount, currency)
+        if eligibility_result.is_error():
+            return Result.fail(eligibility_result.error or "Payment not eligible")
+
         pending = Payment(
             user_email=email,
             amount=amount,
@@ -34,7 +41,14 @@ class PaymentService:
             transaction_id="",
             status="pending",
         )
-        charge_result = self._payment_gateway.charge(pending)
+        try:
+            charge_result = self._payment_gateway.charge(pending)
+        except Exception:
+            return Result.fail("Payment gateway unavailable")
+
+        if charge_result.status != "succeeded":
+            return Result.fail("Payment failed")
+
         payment = Payment(
             user_email=email,
             amount=amount,

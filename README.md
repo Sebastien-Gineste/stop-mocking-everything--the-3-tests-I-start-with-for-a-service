@@ -1,6 +1,13 @@
 # Stop Mocking Everything: The 3 Tests I Start With for a Service — Python Example
 
-A small FastAPI service (users + payments) that demonstrates a testing strategy with **unit**, **contract**, and **E2E** tests. Plus a mock-heavy anti-pattern for contrast.
+Companion code for the article: [Stop Mocking Everything: The 3 Tests I Start With for a Service](https://medium.com/).
+
+This repository demonstrates a test strategy for a service with:
+- **unit tests** for pure logic
+- **sociable service tests** with real collaborators and verified fakes at ports
+- **contract tests** shared by fake and real adapters
+- **end-to-end tests** for real wiring
+- a **mock-heavy anti-pattern** kept for educational contrast
 
 ## Quick start
 
@@ -10,122 +17,99 @@ uv run pytest
 uv run uvicorn app.main:app --reload
 ```
 
-Contract and E2E tests start a **Docker** payment provider (`payment_provider/`) and wire the app via `HttpPaymentGateway`. Docker must be running locally (GitHub Actions includes it).
+Contract and E2E tests start a Docker payment provider from `payment_provider/`.
+Docker must be running locally.
 
 Run tests by layer:
 
 ```bash
 uv run pytest -m unit
+uv run pytest -m service
 uv run pytest -m contract
 uv run pytest -m e2e
 uv run pytest -m antipattern
 ```
 
-CI runs all tests on push/PR via GitHub Actions (`.github/workflows/ci.yml`).
+## Article section to code map
 
-## API
+| Article section | Code in this repo |
+|---|---|
+| Unit tests for pure logic | `tests/unit/test_validation.py` |
+| Sociable service tests | `tests/unit/test_user_service.py`, `tests/unit/test_payment_service.py` |
+| Contract tests (verified fakes) | `tests/contract/test_user_repository_contract.py`, `tests/contract/test_payment_repository_contract.py`, `tests/contract/test_payment_gateway_contract.py` |
+| E2E tests for wiring | `tests/e2e/test_user_and_payment_flow.py` |
+| Mock-everything anti-pattern | `tests/mocks_antipattern/test_user_service_mock_heavy.py`, `tests/mocks_antipattern/test_payment_service_mock_heavy.py` |
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/users` | Register a user |
-| GET | `/users/{email}` | Get user by email |
-| POST | `/payments` | Charge a payment |
-| GET | `/payments/{email}` | List payments for a user |
-
-Example:
-
-```bash
-curl -X POST http://127.0.0.1:8000/users \
-  -H "Content-Type: application/json" \
-  -d '{"email":"john@example.com","password":"secure-password"}'
-
-curl -X POST http://127.0.0.1:8000/payments \
-  -H "Content-Type: application/json" \
-  -d '{"email":"john@example.com","amount":25.0,"currency":"EUR"}'
-```
+Diagram assets used by the article are available in `assets/`:
+- `assets/Mocks-tests-Page-1.drawio-b8ce60ca-55e8-4f73-b1ca-704ab856e24a.png`
+- `assets/Mocks-tests-Page-4.drawio-0ec4e2ef-9497-499b-82d6-dfd923db0a1d.png`
+- `assets/Mocks-tests-Copie_de_Page-1.drawio-9337924a-7305-42ab-b9c0-12ef91d3b378.png`
 
 ## Architecture
 
-```
+```text
 app/
   domain/          # models + pure validation (no I/O)
   ports/           # ABCs: UserRepository, PaymentRepository, PaymentGateway
-  adapters/
-    fakes/               # fake repos + fake payment gateway
-    real_implementation/ # SQLite repos + HTTP payment gateway
-  services/        # orchestration (UserService, PaymentService)
+  adapters/        # SQLite repos + HTTP payment gateway
+  services/        # orchestration + real internal collaborators
   main.py          # FastAPI routes + DI
 payment_provider/  # Docker HTTP external payment service (contract + E2E)
 tests/
-  conftest.py      # shared Docker payment_provider fixture
-  unit/            # validation rules + service orchestration with fakes
-  contract/        # same contract against fake AND real adapters
-  e2e/             # real wiring (HTTP + SQLite + DI + Docker payment provider)
-  mocks_antipattern/  # the "bad" example
+  conftest.py          # shared Docker payment_provider fixture
+  doubles/             # shared test doubles (*_fake.py, *_stub.py, *_spy.py)
+  unit/                # pure logic + sociable service tests
+  contract/            # same contract against fake and real adapters
+  e2e/                 # real wiring (HTTP + SQLite + DI + Docker provider)
+  mocks_antipattern/   # mock-heavy examples
 ```
 
 ## The test layers
 
-Unit tests cover validation rules and service orchestration (with fakes). Contract and E2E layers prove adapter promises and real wiring.
+### 1) Unit tests (pure logic)
 
-### 1. Unit tests (`tests/unit/`)
+`tests/unit/test_validation.py` covers deterministic business rules with no dependencies.
 
-Two kinds of unit tests, each with its own SUT (System Under Tests) setup in the test file:
+### 2) Sociable service tests (real collaborators + verified fakes)
 
-- **Pure logic** — validation rules, no dependencies (`test_validation.py`)
-- **Service orchestration** — `UserService` / `PaymentService` wired with contract-tested fakes (`test_user_service.py`, `test_payment_service.py`)
+`tests/unit/test_user_service.py` and `tests/unit/test_payment_service.py` run real service logic with real internal collaborators.
+At boundaries, they use fakes that are contract-tested against real adapters.
 
-```python
-class SUTBuilder:
-    def __init__(self) -> None:
-        self.repository = FakeUserRepository()
-        self.service = UserService(self.repository)
+`PaymentService` includes a real internal collaborator (`PaymentEligibilityChecker`) to illustrate the sociable pattern.
 
-    def with_user(self, email: str, password: str) -> SUTBuilder:
-        self.service.register_user(email, password)
-        return self
+### 3) Contract tests (fake vs real)
 
-    def build(self) -> SUT:
-        return SUT(service=self.service, repository=self.repository)
+Each boundary defines a contract function and executes it against both implementations:
+- fake adapter (`tests/doubles/`)
+- real adapter (`app/adapters/`)
 
-def sut_builder() -> SUTBuilder:
-    return SUTBuilder()
+### 4) E2E tests (wiring)
 
-def test_register_user_persists_in_fake_repository():
-    sut = sut_builder().build()
-    result = sut.service.register_user("john@example.com", "secure-password")
-    assert sut.repository.find_by_email("john@example.com") is not None
-```
+`tests/e2e/test_user_and_payment_flow.py` runs through FastAPI, DI, SQLite, and the real HTTP payment gateway against a Docker provider.
 
-### 2. Contract tests (`tests/contract/`)
+### 5) Anti-pattern suite
 
-Test the **promise of each boundary**. The same contract runs against fake and real implementations:
+`tests/mocks_antipattern/` intentionally shows mock-heavy tests that assert calls and order more than behavior.
 
-- `FakeUserRepository` vs `SqliteUserRepository`
-- `FakePaymentRepository` vs `SqlitePaymentRepository`
-- `FakePaymentGateway` vs `HttpPaymentGateway` (real HTTP to a Docker payment provider)
+## Test doubles in this repo
 
-```python
-def user_repository_contract(repository):
-    user = User(email="john@example.com", password_hash="hashed")
-    repository.save(user)
-    saved = repository.find_by_email("john@example.com")
-    assert saved.email == "john@example.com"
-```
+- **Location**: all reusable test doubles live in `tests/doubles/`
+- **Naming**: `*_fake.py`, `*_stub.py`, `*_spy.py`
+- **Fake**: `FakeUserRepository`, `FakePaymentRepository`, `FakePaymentGateway`
+- **Stub**: `PaymentGatewayDownStub` forces the "gateway down" scenario
+- **Spy**: `FakePaymentGateway` records charges in `charges` for post-condition assertions
+- **Mock**: `tests/mocks_antipattern/` uses `unittest.mock.Mock` to demonstrate over-mocking
 
-### 3. E2E tests (`tests/e2e/`)
+## What contract tests do not guarantee
 
-Test **real wiring**: FastAPI TestClient, real SQLite, real DI, and `HttpPaymentGateway` calling the Docker payment provider.
+Contract tests improve trust in fakes for promises that are explicitly tested.
+They do not automatically guarantee behaviors that are not in the contract, such as:
+- transaction isolation semantics
+- concurrency behavior under load
+- adapter-specific failure modes you did not encode in the contract
 
-```python
-def test_user_can_register_and_be_retrieved(client):
-    response = client.post("/users", json={...})
-    assert response.status_code == 201
-```
-
-### Anti-pattern (`tests/mocks_antipattern/`)
-
-Mock-heavy tests that assert method calls instead of behavior. Kept green for educational comparison.
+This example uses SQLite for lightweight portability.
+If you need to demonstrate production-specific guarantees (for example PostgreSQL locking behavior), add dedicated integration or E2E tests against that real adapter.
 
 ## Prompt for AI-generated tests
 
@@ -141,6 +125,10 @@ Generate tests for this service using the following strategy:
 5. Add only a small number of end-to-end tests to verify that the real application is correctly wired.
 6. Avoid testing implementation details such as internal method calls unless there is a strong reason.
 ```
+
+## CI
+
+CI runs test layers separately on push and pull requests via `.github/workflows/ci.yml`.
 
 ## License
 

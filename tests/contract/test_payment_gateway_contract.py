@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.adapters.fakes.fake_payment_gateway import FakePaymentGateway
-from app.adapters.real_implementation.http_payment_gateway import HttpPaymentGateway
+from app.adapters.http_payment_gateway import HttpPaymentGateway
 from app.domain.models import Payment
 from app.ports.payment_gateway import PaymentGateway
+from tests.doubles.payment_gateway_fake import FakePaymentGateway
 
 
 # -----------------------------------------------------------------------------
@@ -26,6 +26,7 @@ def payment_gateway_contract(gateway: PaymentGateway) -> None:
 
     assert result.transaction_id
     assert result.status == "succeeded"
+    assert result.transaction_id.startswith(("fake-txn-", "stub-txn-"))
 
 
 # -----------------------------------------------------------------------------

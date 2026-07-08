@@ -25,6 +25,19 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev --frozen
 
-      - name: Run tests
-        # Contract gateway tests require Docker (available on ubuntu-latest).
-        run: uv run pytest -v
+      - name: Run unit tests (pure logic)
+        run: uv run pytest -v -m unit
+
+      - name: Run sociable service tests
+        run: uv run pytest -v -m service
+
+      - name: Run contract tests
+        # Payment gateway contract tests require Docker (available on ubuntu-latest).
+        run: uv run pytest -v -m contract
+
+      - name: Run E2E tests
+        # E2E tests also use the Docker payment provider fixture.
+        run: uv run pytest -v -m e2e
+
+      - name: Run anti-pattern tests
+        run: uv run pytest -v -m antipattern
